@@ -1,6 +1,6 @@
 const { Sequelize } = require('sequelize');
 
-const sequelize = new Sequelize('inventario_arepas', 'inventario_user', 'Usa.2024#', {
+const sequelize = new Sequelize('pos_arepasaurios', 'pos_arepasaurios_user', 'UZtNzCitO4a3UFeVxBlTHHp0OiqEceYP', {
   host: 'localhost',
   dialect: 'postgres',
   logging: false, // Desactiva los logs de Sequelize para hacer más limpia la salida
