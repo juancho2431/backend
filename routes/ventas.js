@@ -1,11 +1,14 @@
-// routes/ventas.js
 const express = require('express');
 const router = express.Router();
-const { Arepa, Bebida, Ingrediente, Ventas, VentaDetalle, Empleado } = require('../models');
+const { Producto, Bebida, Ingrediente, Ventas, VentaDetalle, Empleado } = require('../models');
 const sequelize = require('../config/db');
 console.log('Modelo Ventas:', Ventas);
 
-// Ruta para obtener todas las ventas
+/**
+ * GET '/' - Obtener todas las ventas
+ * Se listan las ventas incluyendo los detalles, donde cada detalle puede tener
+ * un producto (antes llamado arepa) o una bebida.
+ */
 router.get('/', async (req, res) => {
   console.log('Intentando obtener todas las ventas...');
   try {
@@ -16,8 +19,8 @@ router.get('/', async (req, res) => {
           as: 'VentaDetalles',
           include: [
             {
-              model: Arepa,
-              as: 'arepa',
+              model: Producto,   // Usamos Producto en lugar de Arepa
+              as: 'producto',    // Asegúrate de que la asociación esté definida con este alias
               attributes: ['name', 'price'],
               required: false
             },
@@ -32,9 +35,7 @@ router.get('/', async (req, res) => {
       ]
     });
 
-    if (!ventas.length) {
-      return res.status(404).json({ error: 'No se encontraron ventas.' });
-    }
+    
 
     res.json(ventas);
   } catch (error) {
@@ -43,7 +44,10 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Ruta para obtener una venta específica por ID
+/**
+ * GET '/:ventaId' - Obtener una venta específica por ID
+ * Se obtiene la venta con sus detalles y la información del vendedor.
+ */
 router.get('/:ventaId', async (req, res) => {
   const { ventaId } = req.params;
   try {
@@ -57,8 +61,8 @@ router.get('/:ventaId', async (req, res) => {
           as: 'VentaDetalles',
           include: [
             {
-              model: Arepa,
-              as: 'arepa',
+              model: Producto,   // Usamos Producto en lugar de Arepa
+              as: 'producto',    // Debe coincidir con el alias definido en la asociación
               attributes: ['name', 'price'],
               required: false
             },
@@ -73,7 +77,7 @@ router.get('/:ventaId', async (req, res) => {
         {
           model: Empleado,
           as: 'vendedor',
-          attributes: ['nombre', 'apellido'], // Atributos específicos del vendedor
+          attributes: ['nombre', 'apellido'],
         }
       ]
     });
@@ -91,19 +95,21 @@ router.get('/:ventaId', async (req, res) => {
   }
 });
 
-
+/**
+ * POST '/' - Crear una nueva venta
+ * Se espera recibir en el body los datos de la venta y un array de detalles.
+ * Se utiliza una transacción para crear la venta, sus detalles y actualizar el stock.
+ */
 router.post('/', async (req, res) => {
   const { fecha, total, metodo_pago, cliente, vendedor_id, detalles } = req.body;
 
-  // Validar los datos de la solicitud
   if (!fecha || !total || !metodo_pago || !cliente || !vendedor_id || !Array.isArray(detalles) || detalles.length === 0) {
-    return res.status(400).json({ message: 'Debe proporcionar una fecha, un total, método de pago, cliente, vendedor y detalles válidos para la venta.' });
+    return res.status(400).json({ message: 'Debe proporcionar fecha, total, método de pago, cliente, vendedor y detalles válidos para la venta.' });
   }
 
   try {
-    // Iniciar una transacción para asegurar la consistencia de los datos
     await sequelize.transaction(async (transaction) => {
-      // Crear la venta principal con los campos adicionales
+      // Crear la venta principal
       const venta = await Ventas.create({
         fecha,
         total,
@@ -112,16 +118,14 @@ router.post('/', async (req, res) => {
         vendedor_id
       }, { transaction });
 
-      // Iterar sobre los detalles para crear registros y actualizar el stock
+      // Procesar cada detalle de la venta
       for (const detalle of detalles) {
         const { tipo_producto, producto_id, cantidad, precio } = detalle;
-
-        // Validar los datos de cada detalle
         if (!producto_id || !cantidad || !precio) {
           throw new Error('Debe proporcionar todos los datos para cada detalle de la venta.');
         }
 
-        // Crear el registro del detalle de la venta
+        // Crear el registro del detalle
         await VentaDetalle.create({
           venta_id: venta.ventas_id,
           producto_id,
@@ -132,8 +136,8 @@ router.post('/', async (req, res) => {
 
         // Actualizar el stock según el tipo de producto
         if (tipo_producto === 'arepa') {
-          // Obtener los ingredientes asociados con la arepa
-          const arepa = await Arepa.findByPk(producto_id, {
+          // Ahora usamos Producto.findByPk en lugar de Arepa.findByPk
+          const producto = await Producto.findByPk(producto_id, {
             include: {
               model: Ingrediente,
               through: {
@@ -143,47 +147,37 @@ router.post('/', async (req, res) => {
             transaction,
           });
 
-          if (arepa && arepa.Ingredientes) {
-            for (const ingrediente of arepa.Ingredientes) {
-              // Calcular la cantidad de cada ingrediente necesario
-              const cantidadNecesaria = ingrediente.ArepaIngrediente.amount * cantidad;
-
+          if (producto && producto.Ingredientes) {
+            for (const ingrediente of producto.Ingredientes) {
+              const cantidadNecesaria = ingrediente.ProductoIngrediente.amount * cantidad;
               if (ingrediente.stock_current < cantidadNecesaria) {
                 throw new Error(`Stock insuficiente para el ingrediente: ${ingrediente.name}`);
               }
-
-              // Descontar el stock del ingrediente
               ingrediente.stock_current -= cantidadNecesaria;
               await ingrediente.save({ transaction });
             }
           }
         } else if (tipo_producto === 'bebida') {
-          // Descontar el stock de la bebida
           const bebida = await Bebida.findByPk(producto_id, { transaction });
-
           if (bebida && bebida.stock < cantidad) {
             throw new Error(`Stock insuficiente para la bebida: ${bebida.name}`);
           }
-
           bebida.stock -= cantidad;
           await bebida.save({ transaction });
         }
       }
-
-      // Si todo es exitoso, la transacción se completa automáticamente
     });
 
-    // Enviar respuesta de éxito
     res.status(201).json({ message: 'Venta creada con éxito' });
-
   } catch (error) {
     console.error('Error al crear la venta:', error);
     res.status(500).json({ message: 'Error al crear la venta', detalle: error.message });
   }
 });
 
-
-// Ruta para eliminar una venta por ID
+/**
+ * DELETE '/:ventaId' - Eliminar una venta por ID
+ */
 router.delete('/:ventaId', async (req, res) => {
   const { ventaId } = req.params;
   try {

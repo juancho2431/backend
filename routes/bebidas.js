@@ -1,8 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { Bebida } = require('../models');
+const { Bebida } = require('../models'); // Importamos el modelo Bebida
 
-// Obtener todas las bebidas
+/**
+ * GET / - Obtener todas las bebidas
+ * Se consultan todas las bebidas de la base de datos y se devuelven en formato JSON.
+ */
 router.get('/', async (req, res) => {
   try {
     const bebidas = await Bebida.findAll();
@@ -12,7 +15,10 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Obtener una bebida específica
+/**
+ * GET /:id - Obtener una bebida específica
+ * Se busca una bebida por su id (clave primaria) y se devuelve si se encuentra.
+ */
 router.get('/:id', async (req, res) => {
   try {
     const bebidaId = req.params.id;
@@ -26,7 +32,10 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Crear una nueva bebida
+/**
+ * POST / - Crear una nueva bebida
+ * Se reciben los datos (name, stock, price) en el body de la petición y se crea una nueva bebida.
+ */
 router.post('/', async (req, res) => {
   try {
     const { name, stock, price } = req.body;
@@ -37,7 +46,10 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Actualizar una bebida
+/**
+ * PUT /:id - Actualizar una bebida
+ * Se busca la bebida por id y se actualizan sus datos con los valores enviados en el body.
+ */
 router.put('/:id', async (req, res) => {
   try {
     const bebidaId = req.params.id;
@@ -53,7 +65,10 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// Eliminar una bebida
+/**
+ * DELETE /:id - Eliminar una bebida
+ * Se busca la bebida por id y, si existe, se elimina de la base de datos.
+ */
 router.delete('/:id', async (req, res) => {
   try {
     const bebidaId = req.params.id;
