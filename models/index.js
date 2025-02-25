@@ -63,7 +63,7 @@ VentaDetalle.belongsTo(Bebida, {
 // Sincronización de modelos con la base de datos
 // ==================================================
 // La opción { force: false } evita recrear las tablas cada vez que se sincronizan.
-sequelize.sync({ force: false })
+sequelize.sync({ force: true })
   .then(() => {
     console.log('Tablas sincronizadas.');
   })

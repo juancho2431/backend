@@ -13,6 +13,8 @@ const bebidaRoutes = require('./routes/bebidas');             // Rutas para bebi
 const ventasRoutes = require('./routes/ventas');              // Rutas para ventas y detalles de ventas
 const empleadosRouter = require('./routes/empleados');        // Rutas para empleados
 const loginRoutes = require('./routes/login');                 // Rutas de autenticación (login)
+const dashboardRoutes = require('./routes/dashboard');
+const reportesRoutes = require('./routes/reportes');
 
 // Middleware para analizar el cuerpo de las peticiones en formato JSON
 app.use(express.json());
@@ -27,7 +29,8 @@ app.use('/api/bebidas', bebidaRoutes);
 app.use('/api/ventas', ventasRoutes);
 app.use('/api/empleados', empleadosRouter);
 app.use('/api/login', loginRoutes);
-
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/reportes', reportesRoutes);
 // Middleware global para manejo de errores
 app.use((err, req, res, next) => {
   console.error(err.stack);

@@ -103,8 +103,18 @@ router.get('/:ventaId', async (req, res) => {
 router.post('/', async (req, res) => {
   const { fecha, total, metodo_pago, cliente, vendedor_id, detalles } = req.body;
 
-  if (!fecha || !total || !metodo_pago || !cliente || !vendedor_id || !Array.isArray(detalles) || detalles.length === 0) {
-    return res.status(400).json({ message: 'Debe proporcionar fecha, total, método de pago, cliente, vendedor y detalles válidos para la venta.' });
+  if (
+    !fecha ||
+    !total ||
+    !metodo_pago ||
+    !cliente ||
+    !vendedor_id ||
+    !Array.isArray(detalles) ||
+    detalles.length === 0
+  ) {
+    return res.status(400).json({
+      message: 'Debe proporcionar fecha, total, método de pago, cliente, vendedor y detalles válidos para la venta.'
+    });
   }
 
   try {
@@ -120,41 +130,36 @@ router.post('/', async (req, res) => {
 
       // Procesar cada detalle de la venta
       for (const detalle of detalles) {
-        const { tipo_producto, producto_id, cantidad, precio } = detalle;
+        const { tipo_producto, producto_id, cantidad, precio, ingredientes } = detalle;
         if (!producto_id || !cantidad || !precio) {
           throw new Error('Debe proporcionar todos los datos para cada detalle de la venta.');
         }
 
-        // Crear el registro del detalle
+        // Crear el registro del detalle de la venta
         await VentaDetalle.create({
           venta_id: venta.ventas_id,
-          producto_id,
           tipo_producto,
+          producto_id,
           cantidad,
           precio,
         }, { transaction });
 
         // Actualizar el stock según el tipo de producto
-        if (tipo_producto === 'arepa') {
-          // Ahora usamos Producto.findByPk en lugar de Arepa.findByPk
-          const producto = await Producto.findByPk(producto_id, {
-            include: {
-              model: Ingrediente,
-              through: {
-                attributes: ['amount'],
-              },
-            },
-            transaction,
-          });
-
-          if (producto && producto.Ingredientes) {
-            for (const ingrediente of producto.Ingredientes) {
-              const cantidadNecesaria = ingrediente.ProductoIngrediente.amount * cantidad;
-              if (ingrediente.stock_current < cantidadNecesaria) {
+        if (tipo_producto === 'producto') {
+          // Si se han seleccionado ingredientes, descontar el stock de cada uno
+          if (ingredientes && ingredientes.length > 0) {
+            for (const ing of ingredientes) {
+              const ingrediente = await Ingrediente.findByPk(ing.ingredient_id, { transaction });
+              if (!ingrediente) {
+                throw new Error(`Ingrediente con ID ${ing.ingredient_id} no encontrado`);
+              }
+              if (ingrediente.stock_current < ing.amount) {
                 throw new Error(`Stock insuficiente para el ingrediente: ${ingrediente.name}`);
               }
-              ingrediente.stock_current -= cantidadNecesaria;
-              await ingrediente.save({ transaction });
+              // Descontar el stock actual del ingrediente
+              await ingrediente.update({
+                stock_current: ingrediente.stock_current - ing.amount
+              }, { transaction });
             }
           }
         } else if (tipo_producto === 'bebida') {
@@ -162,8 +167,9 @@ router.post('/', async (req, res) => {
           if (bebida && bebida.stock < cantidad) {
             throw new Error(`Stock insuficiente para la bebida: ${bebida.name}`);
           }
-          bebida.stock -= cantidad;
-          await bebida.save({ transaction });
+          await bebida.update({
+            stock: bebida.stock - cantidad
+          }, { transaction });
         }
       }
     });
@@ -174,6 +180,7 @@ router.post('/', async (req, res) => {
     res.status(500).json({ message: 'Error al crear la venta', detalle: error.message });
   }
 });
+
 
 /**
  * DELETE '/:ventaId' - Eliminar una venta por ID
