@@ -46,24 +46,20 @@ Ventas.belongsTo(Empleado, {
 // Un detalle de venta puede referirse a un producto.
 // Se utiliza "constraints: false" para evitar conflictos en caso de tener asociaciones múltiples con el mismo foreignKey.
 VentaDetalle.belongsTo(Producto, {
+  as: 'producto',
   foreignKey: 'producto_id',
-  constraints: false,
-  as: 'producto'
 });
 
-// Relación entre VentaDetalle y Bebida.
-// Un detalle de venta también puede referirse a una bebida, usando el mismo campo 'producto_id'.
 VentaDetalle.belongsTo(Bebida, {
-  foreignKey: 'producto_id',
-  constraints: false,
-  as: 'bebida'
+  as: 'bebida',
+  foreignKey: 'bebida_id',
 });
 
 // ==================================================
 // Sincronización de modelos con la base de datos
 // ==================================================
 // La opción { force: false } evita recrear las tablas cada vez que se sincronizan.
-sequelize.sync({ force: true })
+sequelize.sync({ force: false })
   .then(() => {
     console.log('Tablas sincronizadas.');
   })

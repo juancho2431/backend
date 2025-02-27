@@ -12,63 +12,94 @@ const { Op } = require("sequelize");
  * Devuelve los productos o bebidas más vendidos en el período especificado.
  */
 router.get('/best-selling', async (req, res) => {
-    const { type, period } = req.query;
-  
-    if (!type || !['producto', 'bebida'].includes(type)) {
-      return res.status(400).json({ error: 'El parámetro "type" es obligatorio y debe ser "producto" o "bebida".' });
-    }
-    if (!period || !['dia', 'semana', 'mes', 'anio'].includes(period)) {
-      return res.status(400).json({ error: 'El parámetro "period" es obligatorio y debe ser "dia", "semana", "mes" o "anio".' });
-    }
-  
-    try {
-      let startDate, endDate;
-      const now = new Date();
-      switch (period) {
-        case 'dia':
-          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          endDate = new Date(startDate);
-          endDate.setDate(endDate.getDate() + 1);
-          break;
-        case 'semana':
-          startDate = new Date(now);
-          startDate.setDate(now.getDate() - now.getDay());
-          endDate = new Date(startDate);
-          endDate.setDate(endDate.getDate() + 7);
-          break;
-        case 'mes':
-          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-          endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-          break;
-        case 'anio':
-          startDate = new Date(now.getFullYear(), 0, 1);
-          endDate = new Date(now.getFullYear() + 1, 0, 1);
-          break;
-      }
-  
-      const result = await sequelize.query(`
-        SELECT d.producto_id, p.name, SUM(d.cantidad) AS cantidad_vendida
-        FROM "venta_detalles" d
-        JOIN productos p ON d.producto_id = p.producto_id
-        JOIN "ventas" v ON d.venta_id = v.ventas_id
-        WHERE d.tipo_producto = :type
-          AND v.fecha BETWEEN :startDate AND :endDate
-        GROUP BY d.producto_id, p.name
-        ORDER BY cantidad_vendida DESC
-        LIMIT 10; -- Muestra hasta los 10 productos más vendidos
-      `, {
-        replacements: { type, startDate, endDate },
-        type: sequelize.QueryTypes.SELECT
-      });
-  
-      res.json(result); // Ahora devuelve una lista en lugar de un solo objeto
-    } catch (error) {
-      console.error("Error en best-selling:", error);
-      res.status(500).json({ error: "Error al obtener los más vendidos", detalle: error.message });
-    }
-  });
-  
+  const { type, period } = req.query;
 
+  if (!type || !['producto', 'bebida'].includes(type)) {
+    return res.status(400).json({
+      error: 'El parámetro "type" es obligatorio y debe ser "producto" o "bebida".'
+    });
+  }
+  if (!period || !['dia','semana','mes','anio'].includes(period)) {
+    return res.status(400).json({
+      error: 'El parámetro "period" es obligatorio y debe ser "dia", "semana", "mes" o "anio".'
+    });
+  }
+
+  try {
+    let startDate, endDate;
+    const now = new Date();
+
+    switch (period) {
+      case 'dia':
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + 1);
+        break;
+      case 'semana':
+        startDate = new Date(now);
+        startDate.setDate(now.getDate() - now.getDay());
+        endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + 7);
+        break;
+      case 'mes':
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        break;
+      case 'anio':
+        startDate = new Date(now.getFullYear(), 0, 1);
+        endDate = new Date(now.getFullYear() + 1, 0, 1);
+        break;
+      default:
+        return res.status(400).json({ error: 'Período inválido.' });
+    }
+
+    console.log('period:', period);
+    console.log('startDate:', startDate, 'endDate:', endDate);
+
+    // Para evitar confusiones, vamos a definir el JOIN según el tipo.
+    // Si el sistema usa una sola columna (producto_id para ambos), para bebidas usaremos:
+    // d.producto_id = b.bebida_id
+    // Si usas dos columnas, ajusta la condición a: d.bebida_id = b.bebida_id.
+    let joinTable, joinCondition, nameField;
+    if (type === 'producto') {
+      joinTable = '"productos" p';
+      joinCondition = 'd.producto_id = p.producto_id';
+      nameField = 'p.name';
+    } else {
+      joinTable = '"bebidas" b';
+      // Suponiendo que en tu tabla venta_detalles, para bebidas guardas el ID en bebida_id,
+      // usa: d.bebida_id = b.bebida_id
+      // Si en cambio reutilizas producto_id para bebidas, usa: d.producto_id = b.bebida_id
+      joinCondition = 'd.bebida_id = b.bebida_id';
+      nameField = 'b.name';
+    }
+
+    // La consulta agrupa por producto/bebida y suma la cantidad
+    const result = await sequelize.query(`
+      SELECT
+        ${type === 'producto' ? 'd.producto_id' : 'd.bebida_id'} AS id,
+        ${nameField} AS name,
+        SUM(d.cantidad) AS cantidad_vendida
+      FROM "venta_detalles" d
+      JOIN ${joinTable} ON ${joinCondition}
+      JOIN "ventas" v ON d.venta_id = v.ventas_id
+      WHERE d.tipo_producto = :type
+        AND v.fecha BETWEEN :startDate AND :endDate
+      GROUP BY ${type === 'producto' ? 'd.producto_id' : 'd.bebida_id'}, ${nameField}
+      ORDER BY cantidad_vendida DESC
+      LIMIT 10;
+    `, {
+      replacements: { type, startDate, endDate },
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    // Nos aseguramos de devolver un array
+    res.json(Array.isArray(result) ? result : [result]);
+  } catch (error) {
+    console.error("Error en best-selling:", error);
+    res.status(500).json({ error: "Error al obtener los más vendidos", detalle: error.message });
+  }
+});
 /**
  * Endpoint: GET /api/reportes/total-sales
  * Parámetro de query:
