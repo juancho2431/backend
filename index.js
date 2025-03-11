@@ -1,6 +1,6 @@
 // index.js
 // Archivo principal de la aplicación que configura el servidor Express y registra las rutas de la API.
-
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const app = express();
@@ -21,6 +21,10 @@ app.use(express.json());
 
 // Middleware para habilitar CORS (Cross-Origin Resource Sharing)
 app.use(cors());
+
+app.get('/', (req, res) => {
+  res.send('¡Bienvenido a mi API! 🚀');
+});
 
 // Registrar las rutas de la API con sus respectivos prefijos
 app.use('/api/productos', productoRoutes);
